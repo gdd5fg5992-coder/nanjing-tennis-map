@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>南京网球场分布图 · 55家球场标注</title>
+<script type="text/javascript">
+  window._TMapSecurityConfig = {
+    serviceHost: 'http://127.0.0.1:__WB_HTTP_PORT__/_TMapService/_wbt/__WB_TMAP_SECRET__',
+  };
+</script>
+<script src="https://map.qq.com/api/gljs?v=1.exp&libraries=service"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; height:100%; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+  #wrap { display:flex; height:100vh; }
+  #map { flex:1; height:100vh; }
+
+  #panel {
+    width: 320px; height:100vh; overflow-y:auto; background:#fff;
+    border-left:1px solid #e3e7ee; padding:14px 14px 40px; flex-shrink:0;
+  }
+  #panel h1 { font-size:17px; margin:0 0 2px; color:#02419E; letter-spacing:.5px; }
+  #panel .sub { font-size:12px; color:#7b8794; margin-bottom:12px; }
+  .row { display:flex; gap:8px; margin-bottom:8px; }
+  select, button {
+    font-family:inherit; font-size:12px; padding:6px 8px; border:1px solid #cfd6e0;
+    border-radius:6px; background:#fff; color:#1f2937; cursor:pointer;
+  }
+  select { flex:1; }
+  button:hover { border-color:#02419E; color:#02419E; }
+  button.primary { background:#02419E; color:#fff; border-color:#02419E; }
+  button.on { background:#A6F333; border-color:#7fbf2a; color:#12310b; font-weight:600; }
+
+  .legend { display:flex; flex-wrap:wrap; gap:6px 10px; margin:10px 0 12px; font-size:12px; color:#39414d; }
+  .legend i { width:11px; height:11px; border-radius:3px; display:inline-block; margin-right:4px; vertical-align:-1px; border:1px solid #0b1a2b; }
+
+  #status { font-size:12px; color:#7b8794; margin:6px 0 10px; line-height:1.6; }
+  #status b { color:#02419E; }
+
+  .item {
+    padding:7px 9px; border:1px solid #e8ecf2; border-radius:7px; margin-bottom:6px; cursor:pointer;
+    display:flex; align-items:center; gap:8px; background:#fff;
+  }
+  .item:hover { border-color:#02419E; background:#f5f8ff; }
+  .item .dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; border:1px solid #0b1a2b; }
+  .item .nm { font-size:13px; font-weight:600; color:#1f2937; }
+  .item .meta { font-size:11px; color:#7b8794; margin-left:auto; white-space:nowrap; }
+  .item.me { background:#D9F7A6; border-color:#7fbf2a; }
+  .item.fail { opacity:.55; }
+
+  .iw { min-width:180px; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+  .iw h3 { margin:0 0 4px; font-size:14px; color:#02419E; }
+  .iw p { margin:2px 0; font-size:12px; color:#39414d; line-height:1.55; }
+  .iw .tag { display:inline-block; padding:1px 6px; border-radius:4px; color:#fff; font-size:11px; margin-right:4px; }
+
+  #loading {
+    position:fixed; inset:0; background:rgba(255,255,255,.92); z-index:99;
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px;
+  }
+  #loading .t { font-size:15px; color:#02419E; font-weight:600; }
+  #loading .b { width:260px; height:6px; background:#e8ecf2; border-radius:3px; overflow:hidden; }
+  #loading .b i { display:block; height:100%; width:0%; background:#A6F333; transition:width .2s; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="map"></div>
+  <div id="panel">
+    <h1>南京网球场分布图</h1>
+    <div class="sub">55 家球场 · 简称 / 片数 / 场地类型</div>
+
+    <div class="row">
+      <select id="fArea"><option value="">全部区域</option></select>
+      <select id="fType"><option value="">全部类型</option><option>室内</option><option>室外</option><option>风雨棚</option><option>室内+室外</option></select>
+    </div>
+    <div class="row">
+      <button id="btnLabel" class="primary">隐藏标签</button>
+      <button id="btnReset">重置视图</button>
+    </div>
+    <div class="row">
+      <button id="btnExport">导出坐标</button>
+      <button id="btnImport">导入坐标</button>
+      <input type="file" id="fileImport" accept="application/json" style="display:none">
+    </div>
+
+    <div class="legend">
+      <span><i style="background:#02419E"></i>室内球场</span>
+      <span><i style="background:#A6F333"></i>室外球场</span>
+      <span><i style="background:#F59E0B"></i>风雨棚</span>
+      <span><i style="background:#7C3AED"></i>室内+室外</span>
+    </div>
+
+    <div id="status">正在初始化地图…</div>
+    <div id="list"></div>
+    <div style="font-size:11px;color:#9aa4b0;line-height:1.6;margin-top:14px">
+      数据源：《南京网球场大全（草根民间2026含订场方式更新版）》<br>
+      坐标为按地址自动解析结果，个别点位可能存在偏差。
+    </div>
+  </div>
+</div>
+
+<div id="loading"><div class="t">正在解析球场坐标…</div><div class="b"><i id="bar"></i></div><div id="loadTxt" style="font-size:12px;color:#7b8794">0 / 55</div></div>
+
+<script>
+/* ============ 数据：简称 / 全称 / 区域 / 地址 / 类型 / 片数 / 星级 / 价格 ============ */
+// t: 室内 | 室外 | 风雨棚 | 室内+室外     c: 标准场片数（null=待核）
+const DATA = [
+ {n:'滨河体育公园',f:'雨花滨河体育公园',d:'雨花台',a:'雨花区滨河北路和七贤街交叉口',q:'南京市雨花台区滨河北路与七贤街交叉口',t:'室外',c:3,s:'★★★',p:'60-80'},
+ {n:'乐驰',f:'雨花乐驰网球场',d:'雨花台',a:'雨花台区大周路3号',q:'南京市雨花台区大周路3号',t:'室外',c:3,s:'★★★',p:'40-100'},
+ {n:'同奔',f:'雨花同奔',d:'雨花台',a:'雨花区数字大道与荷月路交叉口',q:'南京市雨花台区数字大道与荷月路交叉口',t:'室内',c:4,s:'★★★★',p:'150-400'},
+ {n:'花园',f:'雨花花园网球场',d:'雨花台',a:'雨花台区文竹路三胞西门',q:'南京市雨花台区文竹路',t:'室外',c:2,s:'★★★★',p:'60-140'},
+ {n:'金地',f:'雨花金地网球场',d:'雨花台',a:'雨花区金地自在城',q:'南京市雨花台区金地自在城',t:'室内+室外',c:12,s:'★★',p:'35-160'},
+ {n:'力众',f:'徐庄力众网球场',d:'玄武',a:'玄武区环园西路与环园中路交叉口',q:'南京市玄武区环园西路与环园中路交叉口',t:'风雨棚',c:3,s:'★★★',p:'100-150'},
+ {n:'中网院',f:'中国网球学院',d:'玄武',a:'玄武区灵谷寺路8号南体',q:'南京市玄武区灵谷寺路8号南京体育学院',t:'室内+室外',c:40,s:'★★★★★',p:'100-1800'},
+ {n:'东郊国宾馆',f:'东郊国宾馆',d:'玄武',a:'玄武区紫金山路5号',q:'南京市玄武区紫金山路5号东郊国宾馆',t:'室内',c:2,s:'★★★★★',p:'500'},
+ {n:'徐庄中心',f:'徐庄网球中心',d:'玄武',a:'徐庄体育中心',q:'南京市玄武区徐庄体育中心',t:'室内',c:3,s:'★★★',p:'200'},
+ {n:'大宝',f:'大宝网球场',d:'玄武',a:'玄武区文枢西路龟山公园内',q:'南京市玄武区文枢西路龟山公园',t:'室外',c:null,s:'★★★',p:'80-120'},
+ {n:'华山饭店',f:'华山饭店文体中心',d:'玄武',a:'玄武区龙蟠中路69号',q:'南京市玄武区龙蟠中路69号华山饭店',t:'室外',c:1,s:'★★',p:'80-140'},
+ {n:'栖霞山脚下',f:'栖霞山脚下网球场',d:'栖霞',a:'栖霞区马群街道花港北路15-8号',q:'南京市栖霞区马群街道花港北路15-8号',t:'室内',c:1,s:'★★★',p:'150-200'},
+ {n:'仙林LP',f:'仙林LP网球',d:'栖霞',a:'栖霞区智谷大道93号',q:'南京市栖霞区智谷大道93号',t:'室外',c:3,s:'★★★',p:'60-100'},
+ {n:'钟山红土',f:'钟山学院红土',d:'栖霞',a:'栖霞区钟山颐养园',q:'南京市栖霞区钟山颐养园',t:'室内',c:2,s:'★★★★',p:'400-500'},
+ {n:'紫金四季',f:'季春美紫金四季网球场',d:'栖霞',a:'玄武区紫金山庄1号',q:'南京市玄武区紫金山庄1号',t:'室外',c:2,s:'★★★★',p:'80-150'},
+ {n:'福中四季',f:'季春美福中四季网球场',d:'栖霞',a:'玄武区福中集团9号楼',q:'南京市玄武区福中集团',t:'室外',c:1,s:'★★★',p:'40-130'},
+ {n:'天王星',f:'天王星网球俱乐部',d:'栖霞',a:'栖霞区营苑北路与万兴路交叉口',q:'南京市栖霞区营苑北路与万兴路交叉口',t:'室外',c:1,s:'★★★',p:'80-100'},
+ {n:'紫东浩源',f:'紫东浩源网球俱乐部',d:'栖霞',a:'栖霞区紫东创意园区',q:'南京市栖霞区紫东创意园',t:'风雨棚',c:null,s:'★★★',p:''},
+ {n:'保利紫晶山',f:'保利紫晶山网球场',d:'栖霞',a:'栖霞区紫东路18号',q:'南京市栖霞区紫东路18号保利紫晶山',t:'室外',c:1,s:'★★★',p:''},
+ {n:'baok',f:'baok网球俱乐部',d:'栖霞',a:'栖霞/仙林湖/信息职业技术学院内',q:'南京市栖霞区南京信息职业技术学院',t:'室内+室外',c:4,s:'★★★',p:''},
+ {n:'温菲尔德',f:'温菲尔德',d:'栖霞',a:'文苑路1号',q:'南京市栖霞区文苑路1号',t:'室外',c:2,s:'★★★',p:''},
+ {n:'弈城ACE',f:'弈城ACE',d:'栖霞',a:'金盛国际家居B座6楼',q:'南京市栖霞区金盛国际家居',t:'室外',c:4,s:'★★★',p:''},
+ {n:'博卡龙',f:'博卡龙（我自己的球馆）',d:'栖霞',a:'聚宝山公园内',q:'南京市栖霞区聚宝山公园',t:'风雨棚',c:1,s:'★★★',p:'80-150',me:true},
+ {n:'易鑫',f:'易鑫网球',d:'栖霞',a:'元化路仙林智谷下沉式广场内',q:'南京市栖霞区元化路仙林智谷',t:'风雨棚',c:3,s:'★★★',p:''},
+ {n:'NJ Tennis',f:'NJ Tennis',d:'栖霞',a:'紫金钟爱里',q:'南京市栖霞区紫金钟爱里',t:'室内',c:3,s:'★★★',p:'',x:'学练馆'},
+ {n:'怪兽',f:'怪兽网球',d:'栖霞',a:'栖霞大道8号高力家居港西门',q:'南京市栖霞区栖霞大道8号高力家居港',t:'室内+室外',c:2,s:'★★★',p:''},
+ {n:'启星',f:'浦口启星',d:'浦口',a:'浦口区金象城旁边',q:'南京市浦口区金象城',t:'室内',c:3,s:'★★★★',p:''},
+ {n:'长江之舟',f:'浦口长江之舟华邑酒店',d:'浦口',a:'浦口区滨江大道504号',q:'南京市浦口区滨江大道504号长江之舟华邑酒店',t:'室内',c:1,s:'★★★★★',p:''},
+ {n:'嘉陆',f:'浦口嘉陆网球',d:'浦口',a:'江北新区顶山街道浦丰路2号',q:'南京市浦口区顶山街道浦丰路2号',t:'室内',c:4,s:'★★★★',p:''},
+ {n:'扬子江',f:'扬子江国际会议中心',d:'浦口',a:'浦口区扬子江国际会议中心',q:'南京市浦口区扬子江国际会议中心',t:'室内',c:1,s:'★★★',p:''},
+ {n:'杏湖公园',f:'杏湖公园',d:'浦口',a:'浦口区绿联路',q:'南京市浦口区绿联路杏湖公园',t:'室外',c:2,s:'★★★',p:''},
+ {n:'七里河',f:'七里河体育公园',d:'浦口',a:'浦口区火药洲路',q:'南京市浦口区火药洲路七里河体育公园',t:'室外',c:1,s:'★★★',p:''},
+ {n:'南钢',f:'南钢文体公园网球馆',d:'六合',a:'六合区幸福路与康乐路交叉口',q:'南京市六合区幸福路与康乐路交叉口',t:'室内',c:2,s:'★★★',p:''},
+ {n:'腾达九龙湖',f:'江宁腾达九龙湖',d:'江宁',a:'江宁区燕湖路与前庄路交叉口',q:'南京市江宁区燕湖路与前庄路交叉口',t:'室内+室外',c:4,s:'★★★★',p:''},
+ {n:'零壹',f:'江宁零壹',d:'江宁',a:'江宁区同腾创业园',q:'南京市江宁区同腾创业园',t:'室内',c:3,s:'★★★★',p:''},
+ {n:'山竹',f:'江宁山竹网球场',d:'江宁',a:'江宁科宁路289号',q:'南京市江宁区科宁路289号',t:'室内+室外',c:6,s:'★★★★',p:''},
+ {n:'全民健身CTC',f:'江宁区全民健身中心ctc',d:'江宁',a:'江宁区全民健身中心',q:'南京市江宁区全民健身中心',t:'室内',c:2,s:'★★★★',p:''},
+ {n:'章村',f:'江宁章村网球场',d:'江宁',a:'江宁区东山镇章村工业园',q:'南京市江宁区东山镇章村工业园',t:'室内',c:4,s:'★★★★',p:''},
+ {n:'益动铭扬',f:'益动铭扬',d:'江宁',a:'江宁区智汇路277号',q:'南京市江宁区智汇路277号',t:'室内+室外',c:3,s:'★★',p:''},
+ {n:'苏芮',f:'苏芮网球',d:'江宁',a:'江宁区清水亭西路2号百家湖科技产业园',q:'南京市江宁区清水亭西路2号百家湖科技产业园',t:'室内',c:3,s:'★★★',p:'',x:'学练馆'},
+ {n:'EPARK',f:'江心洲EPARK公园',d:'建邺',a:'建邺区文武街31号',q:'南京市建邺区文武街31号',t:'室内',c:11,s:'★★★★★',p:''},
+ {n:'M网球',f:'M网球公园',d:'建邺',a:'建邺区M会员商店4楼楼顶',q:'南京市建邺区M会员商店',t:'风雨棚',c:6,s:'★★★★★',p:''},
+ {n:'纵横',f:'河西纵横',d:'建邺',a:'建邺区雨润大街17号',q:'南京市建邺区雨润大街17号',t:'室外',c:4,s:'★★★',p:''},
+ {n:'印千江',f:'河西印千江',d:'建邺',a:'建邺区雨润大街17号',q:'南京市建邺区雨润大街17号',t:'室外',c:2,s:'★★★',p:''},
+ {n:'云泽',f:'河西云泽',d:'建邺',a:'建邺区雨润大街17号',q:'南京市建邺区雨润大街17号',t:'室内',c:1,s:'★★★',p:''},
+ {n:'双和园',f:'河西大蓝鲸双和园',d:'建邺',a:'建邺区档案馆对面',q:'南京市建邺区档案馆',t:'室内',c:2,s:'★★★',p:''},
+ {n:'鱼嘴',f:'河西大蓝鲸鱼嘴',d:'建邺',a:'建邺区双闸路与保双街交叉口',q:'南京市建邺区双闸路与保双街交叉口',t:'室内',c:4,s:'★★★',p:''},
+ {n:'友谊国际',f:'河西大蓝鲸友谊国际公园',d:'建邺',a:'建邺区友谊国际公园',q:'南京市建邺区友谊河路',t:'室外',c:1,s:'★★★',p:''},
+ {n:'奥体',f:'河西奥体',d:'建邺',a:'建邺区奥体中心',q:'南京市建邺区南京奥林匹克体育中心',t:'室内+室外',c:17,s:'★★★★★',p:''},
+ {n:'壹零伍',f:'壹零伍网球',d:'建邺',a:'建邺区雨润大街17号',q:'南京市建邺区雨润大街17号',t:'室外',c:2,s:'★★★',p:''},
+ {n:'万达满贯',f:'河西万达满贯',d:'建邺',a:'建邺区河西万达',q:'南京市建邺区河西万达广场',t:'室外',c:2,s:'★★★',p:''},
+ {n:'热点',f:'热点网球场',d:'鼓楼',a:'鼓楼区江东北路苏宁清江广场',q:'南京市鼓楼区江东北路苏宁清江广场',t:'室外',c:2,s:'★★★★',p:''},
+ {n:'五台山',f:'五台山体育馆',d:'鼓楼',a:'鼓楼区广州路173号',q:'南京市鼓楼区广州路173号五台山体育馆',t:'室内+室外',c:6,s:'★★★★★',p:''},
+ {n:'龙江',f:'龙江网球馆',d:'鼓楼',a:'龙园西路58号',q:'南京市鼓楼区龙园西路58号龙江网球馆',t:'室内',c:3,s:'★★★',p:''},
+ {n:'丁山花园',f:'丁山花园',d:'鼓楼',a:'鼓楼丁山花园大酒店',q:'南京市鼓楼区丁山花园大酒店',t:'室外',c:2,s:'★★★',p:''}
+];
+
+/* ============ 已固化的坐标（GCJ-02，实测解析结果，打开即显示，无需等待） ============ */
+const BAKED = {"0":{"lat":31.94975,"lng":118.735834},"1":{"lat":31.942358,"lng":118.747648},"2":{"lat":31.963485,"lng":118.768853},"3":{"lat":31.974323,"lng":118.778761},"4":{"lat":31.904187,"lng":118.663542},"5":{"lat":32.091883,"lng":118.886995},"6":{"lat":32.044322,"lng":118.86683},"7":{"lat":32.059821,"lng":118.847341},"8":{"lat":32.091765,"lng":118.87802},"9":{"lat":32.092058,"lng":118.902515},"10":{"lat":32.051886,"lng":118.806282},"11":{"lat":32.035891,"lng":118.903959},"12":{"lat":32.135647,"lng":118.951707},"13":{"lat":32.040649,"lng":118.8905},"14":{"lat":32.076051,"lng":118.870811},"15":{"lat":32.091617,"lng":118.880575},"16":{"lat":32.105044,"lng":118.833984},"17":{"lat":32.079841,"lng":118.908218},"18":{"lat":32.08281,"lng":118.908168},"19":{"lat":32.128885,"lng":118.941716},"20":{"lat":32.107148,"lng":118.91302},"21":{"lat":32.132904,"lng":118.733387},"22":{"lat":32.101574,"lng":118.87669},"23":{"lat":32.133923,"lng":118.96736},"24":{"lat":32.061189,"lng":118.888882},"25":{"lat":32.116054,"lng":118.823976},"26":{"lat":32.127142,"lng":118.735277},"27":{"lat":32.044941,"lng":118.666017},"28":{"lat":32.101738,"lng":118.68587},"29":{"lat":32.185044,"lng":118.695742},"30":{"lat":32.165886,"lng":118.757202},"31":{"lat":32.065908,"lng":118.674636},"32":{"lat":32.198036,"lng":118.743482},"33":{"lat":31.890431,"lng":118.841174},"34":{"lat":31.847579,"lng":118.829267},"35":{"lat":31.924422,"lng":118.852465},"36":{"lat":31.949665,"lng":118.849925},"37":{"lat":31.968387,"lng":118.853554},"38":{"lat":32.008967,"lng":118.883843},"39":{"lat":31.918892,"lng":118.820909},"40":{"lat":32.044784,"lng":118.716329},"41":{"lat":32.021496,"lng":118.743722},"42":{"lat":31.980095,"lng":118.727038},"43":{"lat":31.980095,"lng":118.727038},"44":{"lat":31.980095,"lng":118.727038},"45":{"lat":32.014597,"lng":118.722274},"46":{"lat":31.975893,"lng":118.672627},"47":{"lat":31.976384,"lng":118.710278},"48":{"lat":32.00855,"lng":118.72493},"49":{"lat":31.980095,"lng":118.727038},"50":{"lat":32.032272,"lng":118.736135},"51":{"lat":32.045152,"lng":118.740939},"52":{"lat":32.047531,"lng":118.773439},"53":{"lat":32.057037,"lng":118.743314},"54":{"lat":32.076308,"lng":118.749975}};
+
+/* ============ 常量 / 工具 ============ */
+const COLOR = { '室内':'#02419E', '室外':'#A6F333', '风雨棚':'#F59E0B', '室内+室外':'#7C3AED' };
+const LS_KEY = 'nj_tennis_coords_v1';
+
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+function textW(s, size){ let w=0; for(const ch of String(s)){ w += /[\u4e00-\u9fa5，。、（）]/.test(ch) ? size : (ch.charCodeAt(0)>127 ? size*0.62 : size*0.56); } return w; }
+
+/* 同一地址的几家（雨润大街17号等）做微小偏移，避免完全重叠 */
+function jitter(posMap, idx){
+  const key = DATA[idx].q;
+  let k = 0;
+  for (let j = 0; j < idx; j++) if (DATA[j].q === key) k++;
+  if (!k) return null;
+  const angle = k * 1.05, r = 0.00055;
+  return { dLat: Math.cos(angle)*r, dLng: Math.sin(angle)*r };
+}
+
+function chipIcon(idx){
+  const c = DATA[idx];
+  const bg = COLOR[c.t], tc = (c.t === '室外') ? '#10330b' : '#ffffff';
+  const l1 = c.n;
+  const l2 = (c.c === null ? '片数待核' : c.c + '片' + (c.x ? ' · ' + c.x : '')) + ' · ' + c.t.replace('室内+室外','综合');
+  const w = Math.ceil(Math.max(textW(l1,13), textW(l2,11))) + 18;
+  const h = 34;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h+8}" viewBox="0 0 ${w} ${h+8}">` +
+    `<rect x="1" y="1" width="${w-2}" height="${h}" rx="8" ry="8" fill="${bg}" stroke="#0b1a2b" stroke-width="1.2"/>` +
+    `<path d="M${w/2-5} ${h-1} L${w/2} ${h+7} L${w/2+5} ${h-1} Z" fill="${bg}" stroke="#0b1a2b" stroke-width="1.2"/>` +
+    `<text x="${w/2}" y="16" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="13" font-weight="600" fill="${tc}" text-anchor="middle">${esc(l1)}</text>` +
+    `<text x="${w/2}" y="29" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="11" fill="${tc}" text-anchor="middle">${esc(l2)}</text>` +
+    `</svg>`;
+  return { src:'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg), w, h:h+8 };
+}
+function pinIcon(idx, only){
+  const c = DATA[idx];
+  const bg = COLOR[c.t];
+  const dot = c.me && only ? '#D9F7A6' : '#ffffff';
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 26 34">` +
+    `<path d="M13 0C6 0 0 6 0 13c0 9.6 13 21 13 21s13-11.4 13-21C26 6 20 0 13 0z" fill="${bg}" stroke="#0b1a2b" stroke-width="1.4"/>` +
+    `<circle cx="13" cy="13" r="4.6" fill="${dot}"/></svg>`;
+  return { src:'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg), w:26, h:34 };
+}
+
+/* ============ 地图 ============ */
+let map, markerLayer, infoWin;
+let showLabel = true;
+let COORDS = {};            // idx -> {lat,lng}
+let FAILED = [];
+
+function initMap(){
+  map = new TMap.Map('map', { zoom:11, center:new TMap.LatLng(32.06, 118.80), pitch:0, rotation:0 });
+  infoWin = new TMap.InfoWindow({ map, position:new TMap.LatLng(32.06,118.80), offset:{x:0,y:-42}, enableCustom:true, content:'' });
+  infoWin.close();
+  run();
+}
+
+async function run(){
+  COORDS = Object.assign({}, BAKED);          // 先用固化坐标，秒开
+  const missing = DATA.map((_, i) => i).filter(i => !COORDS[i]);
+  if (!missing.length){ setStatus(); renderAll(); hideLoading(); return; }
+  await geocodeAll(missing);
+  setStatus(); renderAll(); hideLoading();
+}
+
+async function geocodeAll(missing){
+  const geo = new TMap.service.Geocoder();
+  let done = 0;
+  async function worker(list){
+    for (const i of list){
+      try{
+        const r = await geo.getLocation({ address: DATA[i].q });
+        const loc = r && r.result && r.result.location;
+        if (loc && loc.lat) COORDS[i] = { lat: loc.lat, lng: loc.lng };
+        else FAILED.push(i);
+      }catch(e){ FAILED.push(i); }
+      done++;
+      document.getElementById('bar').style.width = Math.round(done/missing.length*100) + '%';
+      document.getElementById('loadTxt').textContent = done + ' / ' + missing.length;
+      await new Promise(r => setTimeout(r, 60));
+    }
+  }
+  const N = 5, chunks = [];
+  for (let i = 0; i < N; i++) chunks.push(missing.filter((_, k) => k % N === i));
+  await Promise.all(chunks.map(worker));
+}
+
+function posOf(i){
+  const o = COORDS[i]; if (!o) return null;
+  const j = jitter(COORDS, i);
+  return new TMap.LatLng(o.lat + (j?j.dLat:0), o.lng + (j?j.dLng:0));
+}
+
+function renderAll(){
+  buildFilters(); renderList(); renderMarkers();
+}
+
+function visible(i){
+  const fa = document.getElementById('fArea').value;
+  const ft = document.getElementById('fType').value;
+  if (fa && DATA[i].d !== fa) return false;
+  if (ft && DATA[i].t !== ft) return false;
+  return true;
+}
+
+function renderMarkers(){
+  if (markerLayer) { markerLayer.setMap(null); markerLayer = null; }
+  const styles = {}, geos = [];
+  for (let i = 0; i < DATA.length; i++){
+    if (!COORDS[i] || !visible(i)) continue;
+    const ic = showLabel ? chipIcon(i) : pinIcon(i, true);
+    styles['s' + i] = new TMap.MarkerStyle({ width: ic.w, height: ic.h, src: ic.src, anchor:{ x: ic.w/2, y: ic.h } });
+    geos.push({ id: String(i), styleId:'s'+i, position: posOf(i) });
+  }
+  markerLayer = new TMap.MultiMarker({ map, styles, geometries: geos });
+  markerLayer.on('click', e => {
+    const i = Number(e.geometry.id);
+    const c = DATA[i], p = posOf(i);
+    infoWin.setPosition(p);
+    infoWin.setContent(
+      `<div class="iw"><h3>${esc(c.f)}</h3>` +
+      `<p><span class="tag" style="background:${COLOR[c.t]};color:${c.t==='室外'?'#10330b':'#fff'}">${c.t}</span>` +
+      `<b>${c.c === null ? '片数待核' : c.c + ' 片'}</b>${c.x ? ' + ' + esc(c.x) : ''}</p>` +
+      `<p>📍 ${esc(c.d)} · ${esc(c.a)}</p>` +
+      (c.p ? `<p>💰 ${esc(c.p)} 元/小时</p>` : '') +
+      `<p>${c.s}</p></div>`
+    );
+    infoWin.open();
+    map.easeTo({ center:p, zoom: Math.max(map.getZoom(), 14) }, { duration: 400 });
+  });
+  setStatus();
+}
+
+function buildFilters(){
+  const fa = document.getElementById('fArea');
+  if (fa.options.length <= 1){
+    [...new Set(DATA.map(d => d.d))].forEach(d => {
+      const o = document.createElement('option'); o.value = d; o.textContent = d; fa.appendChild(o);
+    });
+  }
+}
+
+function setStatus(){
+  const n = Object.keys(COORDS).length;
+  document.getElementById('status').innerHTML =
+    `已标注 <b>${n}</b> / ${DATA.length} 家球场` +
+    (FAILED.length ? `　·　<b>${FAILED.length}</b> 家坐标解析失败（列表标灰）` : '') +
+    `　·　当前显示 <b>${countVisible()}</b> 家`;
+}
+
+function countVisible(){ let n=0; for (let i=0;i<DATA.length;i++) if (COORDS[i] && visible(i)) n++; return n; }
+
+function renderList(){
+  const box = document.getElementById('list'); box.innerHTML = '';
+  const order = DATA.map((c,i)=>i).filter(i=>visible(i));
+  order.sort((a,b) => (DATA[b].c||0) - (DATA[a].c||0));
+  order.forEach(i => {
+    const c = DATA[i];
+    const el = document.createElement('div');
+    el.className = 'item' + (c.me ? ' me' : '') + (COORDS[i] ? '' : ' fail');
+    el.innerHTML = `<span class="dot" style="background:${COLOR[c.t]}"></span>` +
+      `<span class="nm">${esc(c.n)}${c.me ? ' ⭐' : ''}</span>` +
+      `<span class="meta">${c.c===null ? '待核' : c.c+'片'} · ${c.d}</span>`;
+    el.onclick = () => { if (!COORDS[i]) return; map.easeTo({ center:posOf(i), zoom:15 }, { duration:400 }); };
+    box.appendChild(el);
+  });
+}
+
+/* 缓存 */
+function loadCache(){ try{ const s = localStorage.getItem(LS_KEY); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
+function saveCache(o){ try{ localStorage.setItem(LS_KEY, JSON.stringify(o)); }catch(e){} }
+function hideLoading(){ document.getElementById('loading').style.display = 'none'; }
+
+/* 事件 */
+document.getElementById('fArea').onchange = () => { renderMarkers(); renderList(); };
+document.getElementById('fType').onchange = () => { renderMarkers(); renderList(); };
+document.getElementById('btnLabel').onclick = e => {
+  showLabel = !showLabel;
+  e.target.textContent = showLabel ? '隐藏标签' : '显示标签';
+  e.target.classList.toggle('primary', showLabel);
+  renderMarkers();
+};
+document.getElementById('btnReset').onclick = () => map.easeTo({ center:new TMap.LatLng(32.06,118.80), zoom:11 }, { duration:400 });
+document.getElementById('btnExport').onclick = () => {
+  const blob = new Blob([JSON.stringify(COORDS, null, 1)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'nanjing-courts-coords.json'; a.click();
+};
+document.getElementById('btnImport').onclick = () => document.getElementById('fileImport').click();
+document.getElementById('fileImport').onchange = ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    try{
+      COORDS = JSON.parse(fr.result); saveCache(COORDS); FAILED = []; renderAll();
+    }catch(e){ alert('文件格式不正确'); }
+  };
+  fr.readAsText(f);
+};
+
+window.addEventListener('load', () => {
+  if (window.TMap) { initMap(); return; }
+  setTimeout(() => {
+    if (window.TMap) { initMap(); return; }
+    document.getElementById('loading').innerHTML =
+      '<div class="t">地图底图加载失败</div>' +
+      '<div style="font-size:13px;color:#39414d;line-height:1.9;max-width:420px;text-align:center">' +
+      '本页需要通过 WorkBuddy 的预览面板打开（地图代理地址由宿主环境注入）。<br>' +
+      '直接双击文件用浏览器打开时，底图和标注都无法加载。</div>';
+  }, 6000);
+});
+</script>
+</body>
+</html>
