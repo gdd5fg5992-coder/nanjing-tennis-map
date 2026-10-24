@@ -61,12 +61,60 @@
   #loading .t { font-size:15px; color:#02419E; font-weight:600; }
   #loading .b { width:260px; height:6px; background:#e8ecf2; border-radius:3px; overflow:hidden; }
   #loading .b i { display:block; height:100%; width:0%; background:#A6F333; transition:width .2s; }
+
+  /* ===== 侧边栏折叠 ===== */
+  #panel { transition: margin-right .28s cubic-bezier(.4,0,.2,1); }
+  body.panel-hidden #panel { margin-right:-322px; }
+  #btnPanel {
+    position:fixed; top:12px; right:12px; z-index:80; padding:0;
+    width:42px; height:42px; border-radius:12px; font-size:17px; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    background:#fff; color:#02419E; border:1px solid #cfd6e0;
+    box-shadow:0 4px 14px rgba(15,31,56,.14);
+  }
+  #btnPanel:hover { background:#02419E; color:#fff; border-color:#02419E; }
+  #grip { display:none; }
+
+  /* ===== 手机端 ===== */
+  @media (max-width: 820px){
+    html, body { overflow:hidden; }
+    #wrap { display:block; }
+    #map { height:100vh; height:100dvh; }
+    #panel {
+      position:fixed; left:0; right:0; bottom:0; z-index:70;
+      width:auto; height:58vh; height:58dvh; margin-right:0 !important;
+      border-left:none; border-top:1px solid #e3e7ee;
+      border-radius:18px 18px 0 0; box-shadow:0 -8px 30px rgba(15,31,56,.18);
+      padding:6px 14px calc(22px + env(safe-area-inset-bottom));
+      transform:translateY(0); transition:transform .28s cubic-bezier(.4,0,.2,1);
+    }
+    body.panel-hidden #panel { transform:translateY(calc(100% + 30px)); }
+    #grip {
+      display:block; width:42px; height:4px; border-radius:2px;
+      background:#d5dbe4; margin:2px auto 10px; cursor:pointer;
+    }
+    #btnPanel {
+      top:calc(10px + env(safe-area-inset-top)); right:10px;
+      width:46px; height:46px; border-radius:14px; font-size:19px;
+    }
+    #panel h1 { font-size:18px; }
+    .row { flex-wrap:wrap; }
+    .row > * { flex:1 1 46%; min-width:0; }
+    select, button { font-size:13px; padding:9px 10px; min-height:38px; }
+    .item { padding:10px 11px; }
+    .item .nm { font-size:14px; }
+    .item .meta { font-size:12px; }
+    .legend { font-size:12px; gap:6px 12px; }
+    .iw { min-width:150px; }
+  }
 </style>
 </head>
 <body>
+<button id="btnPanel" type="button" aria-label="收起侧边栏">›</button>
 <div id="wrap">
   <div id="map"></div>
   <div id="panel">
+    <div id="grip" title="收起面板"></div>
     <h1>南京网球场分布图</h1>
     <div class="sub">55 家球场 · 简称 / 片数 / 场地类型</div>
 
@@ -329,7 +377,11 @@ function renderList(){
     el.innerHTML = `<span class="dot" style="background:${COLOR[c.t]}"></span>` +
       `<span class="nm">${esc(c.n)}${c.me ? ' ⭐' : ''}</span>` +
       `<span class="meta">${c.c===null ? '待核' : c.c+'片'} · ${c.d}</span>`;
-    el.onclick = () => { if (!COORDS[i]) return; map.easeTo({ center:posOf(i), zoom:15 }, { duration:400 }); };
+    el.onclick = () => {
+      if (!COORDS[i]) return;
+      map.easeTo({ center:posOf(i), zoom:15 }, { duration:400 });
+      if (isMobile()) setPanel(true);       // 手机端点完自动收起，方便看图
+    };
     box.appendChild(el);
   });
 }
@@ -349,6 +401,26 @@ document.getElementById('btnLabel').onclick = e => {
   renderMarkers();
 };
 document.getElementById('btnReset').onclick = () => map.easeTo({ center:new TMap.LatLng(32.06,118.80), zoom:11 }, { duration:400 });
+
+/* 侧边栏折叠：手机端默认收起，点按钮/顶部横条可全屏看地图 */
+const isMobile = () => window.matchMedia('(max-width: 820px)').matches;
+const btnPanel = document.getElementById('btnPanel');
+function setPanel(hidden){
+  document.body.classList.toggle('panel-hidden', hidden);
+  btnPanel.textContent = isMobile() ? (hidden ? '☰' : '✕') : (hidden ? '‹' : '›');
+  btnPanel.title = hidden ? '展开面板' : '收起面板，全屏看地图';
+  btnPanel.setAttribute('aria-label', btnPanel.title);
+  setTimeout(() => { try{ if (map && map.resize) map.resize(); }catch(e){} }, 320);
+}
+btnPanel.onclick = () => setPanel(!document.body.classList.contains('panel-hidden'));
+document.getElementById('grip').onclick = () => setPanel(true);
+let lastNarrow = isMobile();
+window.addEventListener('resize', () => {
+  const narrow = isMobile();
+  if (narrow !== lastNarrow){ lastNarrow = narrow; setPanel(narrow); }
+  else setPanel(document.body.classList.contains('panel-hidden'));
+});
+setPanel(isMobile());
 document.getElementById('btnExport').onclick = () => {
   const blob = new Blob([JSON.stringify(COORDS, null, 1)], { type:'application/json' });
   const a = document.createElement('a');
