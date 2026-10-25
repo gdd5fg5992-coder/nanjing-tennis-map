@@ -67,7 +67,7 @@
   body.panel-hidden #panel { margin-right:-322px; }
   #btnPanel {
     /* 腾讯地图控件容器 z-index:1000，按钮必须更高才不会被指北针/缩放键压住 */
-    position:fixed; top:12px; right:12px; z-index:1001; padding:0;
+    position:fixed; top:12px; right:12px; z-index:1002; padding:0;
     width:42px; height:42px; border-radius:12px; font-size:17px; line-height:1;
     display:flex; align-items:center; justify-content:center;
     background:#fff; color:#02419E; border:1px solid #cfd6e0;
@@ -82,7 +82,8 @@
     #wrap { display:block; }
     #map { height:100vh; height:100dvh; }
     #panel {
-      position:fixed; left:0; right:0; bottom:0; z-index:70;
+      /* 腾讯地图控件是全屏透明容器（z-index:1000），面板必须更高，否则手机上抽屉里的筛选器点不动 */
+      position:fixed; left:0; right:0; bottom:0; z-index:1001;
       width:auto; height:58vh; height:58dvh; margin-right:0 !important;
       border-left:none; border-top:1px solid #e3e7ee;
       border-radius:18px 18px 0 0; box-shadow:0 -8px 30px rgba(15,31,56,.18);
@@ -92,18 +93,16 @@
     body.panel-hidden #panel { transform:translateY(calc(100% + 30px)); }
     /* 骑缝按钮已承担收起功能，抽屉横条不再显示，避免视觉重叠 */
     #grip { display:none; }
-    /* 手机端：收起键移到屏幕底部居中，避开地图右上角的指北针 / 缩放控件 */
+    /* 手机端：收起键贴在右边缘、地图可视区垂直居中，避开右上角指北针/缩放键 */
     #btnPanel {
-      top:auto; left:50%; right:auto; transform:translateX(-50%);
-      bottom:calc(22px + env(safe-area-inset-bottom));
-      width:56px; height:56px; border-radius:18px; font-size:22px;
+      top:50%; bottom:auto; left:auto; right:10px;
+      transform:translateY(-50%);
+      width:52px; height:52px; border-radius:16px; font-size:20px;
       box-shadow:0 6px 20px rgba(15,31,56,.22);
-      transition:bottom .28s cubic-bezier(.4,0,.2,1), opacity .22s ease, background .18s ease, color .18s ease;
+      transition:top .28s cubic-bezier(.4,0,.2,1), background .18s ease, color .18s ease;
     }
-    /* 面板展开时按钮「骑缝」在抽屉顶边线上（右侧），随时可点 ✕ 收起 */
-    body:not(.panel-hidden) #btnPanel {
-      bottom:calc(58dvh - 28px + env(safe-area-inset-bottom));
-    }
+    /* 面板展开时地图只剩顶部 42dvh，按钮上移到该区域居中，绝不压住抽屉内容 */
+    body:not(.panel-hidden) #btnPanel { top:calc(21dvh); }
     #panel h1 { font-size:18px; }
     .row { flex-wrap:wrap; }
     .row > * { flex:1 1 46%; min-width:0; }
