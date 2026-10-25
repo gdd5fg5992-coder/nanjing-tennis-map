@@ -23,6 +23,30 @@
   #panel h1 { font-size:17px; margin:0 0 2px; color:#02419E; letter-spacing:.5px; }
   #panel .sub { font-size:12px; color:#7b8794; margin-bottom:12px; }
   .row { display:flex; gap:8px; margin-bottom:8px; }
+  .search {
+    position:relative; display:flex; align-items:center; margin-bottom:8px;
+    border:1px solid #cfd6e0; border-radius:7px; background:#fff; overflow:hidden;
+  }
+  .search:focus-within { border-color:#02419E; box-shadow:0 0 0 3px rgba(2,65,158,.12); }
+  .search .si { padding:0 2px 0 9px; font-size:12px; color:#9aa4b0; flex-shrink:0; }
+  .search input {
+    flex:1; min-width:0; border:none; outline:none; background:transparent;
+    font-family:inherit; font-size:13px; color:#1f2937; padding:8px 6px;
+  }
+  .search input::-webkit-search-cancel-button { display:none; }
+  .search #btnClearKey {
+    border:none; background:transparent; color:#9aa4b0; font-size:13px; line-height:1;
+    padding:6px 9px; cursor:pointer; display:none; flex-shrink:0; border-radius:0;
+  }
+  .search.has-val #btnClearKey { display:block; }
+  .search #btnClearKey:hover { color:#02419E; background:transparent; }
+  mark { background:#FFF2A8; color:inherit; padding:0 1px; border-radius:2px; }
+  .empty {
+    padding:16px 10px; text-align:center; font-size:13px; color:#6b7684; line-height:1.7;
+    border:1px dashed #d8dee7; border-radius:8px; background:#fafbfd;
+  }
+  .empty span { font-size:11px; color:#9aa4b0; }
+
   select, button {
     font-family:inherit; font-size:12px; padding:6px 8px; border:1px solid #cfd6e0;
     border-radius:6px; background:#fff; color:#1f2937; cursor:pointer;
@@ -107,6 +131,9 @@
     }
     #panel h1 { font-size:18px; }
     .row { flex-wrap:wrap; }
+    /* 手机端输入框 ≥16px，避免 iOS 聚焦时自动放大页面 */
+    .search input { font-size:16px; padding:9px 6px; }
+    .search #btnClearKey { font-size:15px; padding:8px 11px; }
     .row > * { flex:1 1 46%; min-width:0; }
     select, button { font-size:13px; padding:9px 10px; min-height:38px; }
     .item { padding:10px 11px; }
@@ -125,6 +152,12 @@
     <div id="grip" title="收起面板"></div>
     <h1>南京网球场分布图</h1>
     <div class="sub" id="subCount">56 家球场 · 简称 / 片数 / 场地类型</div>
+
+    <div class="search">
+      <span class="si">🔍</span>
+      <input id="fKey" type="search" placeholder="搜索球场：名称 / 区域 / 地址" autocomplete="off" spellcheck="false">
+      <button id="btnClearKey" type="button" title="清空搜索" aria-label="清空搜索">✕</button>
+    </div>
 
     <div class="row">
       <select id="fArea"><option value="">全部区域</option></select>
@@ -320,12 +353,38 @@ function renderAll(){
   buildFilters(); renderList(); renderMarkers();
 }
 
+/* 关键词：支持空格分词（多词为「且」），匹配 简称/全称/区域/地址/类型 */
+function keywords(){
+  const el = document.getElementById('fKey');
+  if (!el) return [];
+  return el.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+function hayOf(i){
+  const c = DATA[i];
+  return (c.n + ' ' + c.f + ' ' + c.d + ' ' + c.a + ' ' + c.t).toLowerCase();
+}
 function visible(i){
   const fa = document.getElementById('fArea').value;
   const ft = document.getElementById('fType').value;
   if (fa && DATA[i].d !== fa) return false;
   if (ft && DATA[i].t !== ft) return false;
+  const kw = keywords();
+  if (kw.length){
+    const hay = hayOf(i);
+    for (const w of kw) if (!hay.includes(w)) return false;
+  }
   return true;
+}
+/* 列表里高亮命中的关键词片段 */
+function hl(text){
+  const kw = keywords();
+  let s = esc(text);
+  if (!kw.length) return s;
+  const escRe = w => esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  kw.forEach(w => {
+    s = s.replace(new RegExp('(' + escRe(w) + ')', 'gi'), '<mark>$1</mark>');
+  });
+  return s;
 }
 
 function renderMarkers(){
@@ -386,8 +445,9 @@ function renderList(){
     const el = document.createElement('div');
     el.className = 'item' + (c.me ? ' me' : '') + (COORDS[i] ? '' : ' fail');
     el.innerHTML = `<span class="dot" style="background:${COLOR[c.t]}"></span>` +
-      `<span class="nm">${esc(c.n)}${c.me ? ' ⭐' : ''}</span>` +
-      `<span class="meta">${c.c===null ? '待核' : c.c+'片'} · ${c.d}</span>`;
+      `<span class="nm">${hl(c.n)}${c.me ? ' ⭐' : ''}</span>` +
+      `<span class="meta">${c.c===null ? '待核' : c.c+'片'} · ${hl(c.d)}</span>`;
+    el.title = c.f + ' · ' + c.d + ' · ' + c.a + ' · ' + c.t;
     el.onclick = () => {
       if (!COORDS[i]) return;
       map.easeTo({ center:posOf(i), zoom:15 }, { duration:400 });
@@ -395,6 +455,10 @@ function renderList(){
     };
     box.appendChild(el);
   });
+  if (!order.length){
+    const kw = keywords().join(' ');
+    box.innerHTML = `<div class="empty">没有匹配的球场${kw ? '：' + esc(kw) : ''}<br><span>试试「江宁」「室内」「体育公园」等关键词</span></div>`;
+  }
 }
 
 /* 缓存 */
@@ -405,6 +469,30 @@ function hideLoading(){ document.getElementById('loading').style.display = 'none
 /* 事件 */
 document.getElementById('fArea').onchange = () => { renderMarkers(); renderList(); };
 document.getElementById('fType').onchange = () => { renderMarkers(); renderList(); };
+
+/* 搜索：输入即时过滤，Esc / ✕ 清空 */
+const keyInput = document.getElementById('fKey');
+function refresh(){ renderMarkers(); renderList(); }
+function syncClearBtn(){
+  document.querySelector('.search').classList.toggle('has-val', !!keyInput.value);
+}
+/* 搜索后把视野聚拢到命中结果（结果过多时不打扰） */
+function fitResults(){
+  try{
+    const idx = DATA.map((c,i)=>i).filter(i => COORDS[i] && visible(i));
+    if (!idx.length || idx.length > 12) return;
+    const b = new TMap.LatLngBounds();
+    idx.forEach(i => b.extend(posOf(i)));
+    map.fitBounds(b, { padding: 80 });
+  }catch(e){ /* 部分 SDK 版本不支持 fitBounds，忽略即可 */ }
+}
+keyInput.addEventListener('input', () => { syncClearBtn(); refresh(); fitResults(); });
+keyInput.addEventListener('keydown', e => {
+  if (e.key === 'Escape' || e.key === 'Enter'){ keyInput.value = ''; syncClearBtn(); refresh(); keyInput.blur(); }
+});
+document.getElementById('btnClearKey').onclick = () => {
+  keyInput.value = ''; syncClearBtn(); refresh(); keyInput.focus();
+};
 document.getElementById('btnLabel').onclick = e => {
   showLabel = !showLabel;
   e.target.textContent = showLabel ? '隐藏标签' : '显示标签';
