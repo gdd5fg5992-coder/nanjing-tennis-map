@@ -63,6 +63,8 @@
   #loading .b i { display:block; height:100%; width:0%; background:#A6F333; transition:width .2s; }
 
   /* ===== 侧边栏折叠 ===== */
+  /* 隐藏腾讯地图默认指北针（罗盘），避免挡住右上角收起按钮；缩放按钮保留 */
+  #map .rotate-circle { display:none !important; }
   #panel { transition: margin-right .28s cubic-bezier(.4,0,.2,1); }
   body.panel-hidden #panel { margin-right:-322px; }
   #btnPanel {
