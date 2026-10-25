@@ -63,12 +63,11 @@
   #loading .b i { display:block; height:100%; width:0%; background:#A6F333; transition:width .2s; }
 
   /* ===== 侧边栏折叠 ===== */
-  /* 隐藏腾讯地图默认指北针（罗盘），避免挡住右上角收起按钮；缩放按钮保留 */
-  #map .rotate-circle { display:none !important; }
   #panel { transition: margin-right .28s cubic-bezier(.4,0,.2,1); }
   body.panel-hidden #panel { margin-right:-322px; }
   #btnPanel {
-    position:fixed; top:12px; right:12px; z-index:80; padding:0;
+    /* 腾讯地图控件容器 z-index:1000，按钮必须更高才不会被指北针/缩放键压住 */
+    position:fixed; top:12px; right:12px; z-index:1001; padding:0;
     width:42px; height:42px; border-radius:12px; font-size:17px; line-height:1;
     display:flex; align-items:center; justify-content:center;
     background:#fff; color:#02419E; border:1px solid #cfd6e0;
@@ -91,13 +90,19 @@
       transform:translateY(0); transition:transform .28s cubic-bezier(.4,0,.2,1);
     }
     body.panel-hidden #panel { transform:translateY(calc(100% + 30px)); }
-    #grip {
-      display:block; width:42px; height:4px; border-radius:2px;
-      background:#d5dbe4; margin:2px auto 10px; cursor:pointer;
-    }
+    /* 骑缝按钮已承担收起功能，抽屉横条不再显示，避免视觉重叠 */
+    #grip { display:none; }
+    /* 手机端：收起键移到屏幕底部居中，避开地图右上角的指北针 / 缩放控件 */
     #btnPanel {
-      top:calc(10px + env(safe-area-inset-top)); right:10px;
-      width:46px; height:46px; border-radius:14px; font-size:19px;
+      top:auto; left:50%; right:auto; transform:translateX(-50%);
+      bottom:calc(22px + env(safe-area-inset-bottom));
+      width:56px; height:56px; border-radius:18px; font-size:22px;
+      box-shadow:0 6px 20px rgba(15,31,56,.22);
+      transition:bottom .28s cubic-bezier(.4,0,.2,1), opacity .22s ease, background .18s ease, color .18s ease;
+    }
+    /* 面板展开时按钮「骑缝」在抽屉顶边线上（右侧），随时可点 ✕ 收起 */
+    body:not(.panel-hidden) #btnPanel {
+      bottom:calc(58dvh - 28px + env(safe-area-inset-bottom));
     }
     #panel h1 { font-size:18px; }
     .row { flex-wrap:wrap; }
