@@ -93,16 +93,18 @@
     body.panel-hidden #panel { transform:translateY(calc(100% + 30px)); }
     /* 骑缝按钮已承担收起功能，抽屉横条不再显示，避免视觉重叠 */
     #grip { display:none; }
-    /* 手机端：收起键贴在右边缘、地图可视区垂直居中，避开右上角指北针/缩放键 */
+    /* 手机端：收起键贴屏幕底部水平居中，避开右上角指北针/缩放键 */
     #btnPanel {
-      top:50%; bottom:auto; left:auto; right:10px;
-      transform:translateY(-50%);
-      width:52px; height:52px; border-radius:16px; font-size:20px;
+      top:auto; bottom:calc(22px + env(safe-area-inset-bottom));
+      left:50%; right:auto; transform:translateX(-50%);
+      width:56px; height:56px; border-radius:18px; font-size:22px;
       box-shadow:0 6px 20px rgba(15,31,56,.22);
-      transition:top .28s cubic-bezier(.4,0,.2,1), background .18s ease, color .18s ease;
+      transition:bottom .28s cubic-bezier(.4,0,.2,1), background .18s ease, color .18s ease;
     }
-    /* 面板展开时地图只剩顶部 42dvh，按钮上移到该区域居中，绝不压住抽屉内容 */
-    body:not(.panel-hidden) #btnPanel { top:calc(21dvh); }
+    /* 面板展开时按钮「骑缝」在抽屉顶边线上（水平居中），不进入抽屉内容区 */
+    body:not(.panel-hidden) #btnPanel {
+      bottom:calc(58dvh - 28px + env(safe-area-inset-bottom));
+    }
     #panel h1 { font-size:18px; }
     .row { flex-wrap:wrap; }
     .row > * { flex:1 1 46%; min-width:0; }
